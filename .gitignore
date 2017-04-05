@@ -1,0 +1,10 @@
+# vStuff
+.vmake/
+.sync/
+*~
+*.sublime-workspace
+
+*.stackdump
+
+vmake-edge.lua
+
