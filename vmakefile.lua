@@ -71,7 +71,7 @@ GlobalData {
 --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --
 
 GlobalData {
-    Opts_CXX_Precompiler = function()
+    Opts_CXX_Preprocessor = function()
         local res = List {
             "-DVERMILION",
             "-DVERMILION__ARCH=" .. selArch.Name,
@@ -90,7 +90,7 @@ GlobalData {
     end,
 
     Opts_CXX_Common = function()
-        local res = List "-pipe -Wall -Wextra -Wpedantic" + Opts_CXX_Precompiler + selConf.Data.Opts_CXX
+        local res = List "-pipe -Wall -Wextra -Wpedantic" + Opts_CXX_Preprocessor + selConf.Data.Opts_CXX
 
         if settMakeDeps then
             res:Append("-MD"):Append("-MP")
@@ -99,20 +99,64 @@ GlobalData {
         return res
     end,
 
-    Opts_CXX_LLVM = function()
-        local fp, output = _G.io.popen("llvm-config --cxxflags"), {}
+    Opts_LLVM_Preprocessor = function()
+        local fp = _G.io.popen("llvm-config --cppflags")
+        local output, a, b, c = fp:read("*a")
 
-        for line in fp:lines() do
-            output[#output + 1] = line
+        if output then
+            a, b, c = fp:close()
         end
 
-        local a, b, c = fp:close()
-
-        if c == 1 then
-            _G.error("Could not get LLVM C++ flags: " .. a .. "; " .. b .. "; " .. c .. "!")
+        if not output or c == 1 then
+            _G.error("Could not get LLVM C preprocessor flags: " .. a .. "; " .. b .. "; " .. c .. "!")
         end
 
-        return _G.table.concat(output, " ")
+        return List(output)
+    end,
+
+    Opts_LLVM_CXX = function()
+        local fp = _G.io.popen("llvm-config --cxxflags")
+        local output, a, b, c = fp:read("*a")
+
+        if output then
+            a, b, c = fp:close()
+        end
+
+        if not output or c == 1 then
+            _G.error("Could not get LLVM C preprocessor flags: " .. a .. "; " .. b .. "; " .. c .. "!")
+        end
+
+        return List(output)
+    end,
+
+    Opts_LLVM_LD = function()
+        local fp = _G.io.popen("llvm-config --ldflags")
+        local output, a, b, c = fp:read("*a")
+
+        if output then
+            a, b, c = fp:close()
+        end
+
+        if not output or c == 1 then
+            _G.error("Could not get LLVM C preprocessor flags: " .. a .. "; " .. b .. "; " .. c .. "!")
+        end
+
+        return List(output)
+    end,
+
+    LLVM_Libraries = function()
+        local fp = _G.io.popen("llvm-config --libs")
+        local output, a, b, c = fp:read("*a")
+
+        if output then
+            a, b, c = fp:close()
+        end
+
+        if not output or c == 1 then
+            _G.error("Could not get LLVM C preprocessor flags: " .. a .. "; " .. b .. "; " .. c .. "!")
+        end
+
+        return List(output)
     end,
 }
 
@@ -136,10 +180,14 @@ ManagedProject "Compiler" {
         BinaryPath = DAT "CompilerPath",
         PrecompiledCppHeader = "common.hpp",
 
-        Opts_CXX = LST "-std=gnu++11 -flto -DVERMILION_COMPILER !Opts_CXX_Common !Opts_Includes",
-        Opts_LD = LST "-fuse-linker-plugin !Opts_CXX",
+        Opts_CXX = LST "-std=gnu++11 -flto -DVERMILION_COMPILER !Opts_CXX_Common !Opts_Includes !Opts_LLVM_Preprocessor",
+        Opts_LD = LST "-fuse-linker-plugin !Opts_CXX !Opts_LLVM_LD",
 
-        Libraries = LST "LLVMCore LLVMSupport",
+        Opts_Libraries = function()
+            return Libraries:Select(function(val)
+                return "-l" .. val
+            end) + LLVM_Libraries
+        end,
     },
 
     Directory = "compiler",
