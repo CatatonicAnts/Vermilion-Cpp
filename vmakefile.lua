@@ -99,65 +99,10 @@ GlobalData {
         return res
     end,
 
-    Opts_LLVM_Preprocessor = function()
-        local fp = _G.io.popen("llvm-config --cppflags")
-        local output, a, b, c = fp:read("*a")
-
-        if output then
-            a, b, c = fp:close()
-        end
-
-        if not output or c == 1 then
-            _G.error("Could not get LLVM C preprocessor flags: " .. a .. "; " .. b .. "; " .. c .. "!")
-        end
-
-        return List(output)
-    end,
-
-    Opts_LLVM_CXX = function()
-        local fp = _G.io.popen("llvm-config --cxxflags")
-        local output, a, b, c = fp:read("*a")
-
-        if output then
-            a, b, c = fp:close()
-        end
-
-        if not output or c == 1 then
-            _G.error("Could not get LLVM C preprocessor flags: " .. a .. "; " .. b .. "; " .. c .. "!")
-        end
-
-        return List(output)
-    end,
-
-    Opts_LLVM_LD = function()
-        local fp = _G.io.popen("llvm-config --ldflags")
-        local output, a, b, c = fp:read("*a")
-
-        if output then
-            a, b, c = fp:close()
-        end
-
-        if not output or c == 1 then
-            _G.error("Could not get LLVM C preprocessor flags: " .. a .. "; " .. b .. "; " .. c .. "!")
-        end
-
-        return List(output)
-    end,
-
-    LLVM_Libraries = function()
-        local fp = _G.io.popen("llvm-config --libs")
-        local output, a, b, c = fp:read("*a")
-
-        if output then
-            a, b, c = fp:close()
-        end
-
-        if not output or c == 1 then
-            _G.error("Could not get LLVM C preprocessor flags: " .. a .. "; " .. b .. "; " .. c .. "!")
-        end
-
-        return List(output)
-    end,
+    Opts_LLVM_Preprocessor  = DataFromCommand("llvm-config --cppflags"),
+    Opts_LLVM_CXX           = DataFromCommand("llvm-config --cxxflags"),
+    Opts_LLVM_LD            = DataFromCommand("llvm-config --ldflags"),
+    LLVM_Libraries          = DataFromCommand("llvm-config --libs"),
 }
 
 --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --
@@ -184,9 +129,7 @@ ManagedProject "Compiler" {
         Opts_LD = LST "-fuse-linker-plugin !Opts_CXX !Opts_LLVM_LD",
 
         Opts_Libraries = function()
-            return Libraries:Select(function(val)
-                return "-l" .. val
-            end) + LLVM_Libraries
+            return Libraries:Select(L "|val| '-l' .. val") + LLVM_Libraries
         end,
     },
 
