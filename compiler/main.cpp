@@ -39,7 +39,8 @@ int main(int argc, char * * argv)
         }
         else
         {
-            std::cout << "FAILED TO PRODUCE TOKEN" << std::endl;
+            std::cout << "FAILED TO PRODUCE TOKEN:" << std::endl;
+            std::cout << cons->get_error() << std::endl;
 
             break;
         }

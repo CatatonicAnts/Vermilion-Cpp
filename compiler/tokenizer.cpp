@@ -204,6 +204,11 @@ std::ostream & verm::operator <<(std::ostream & st, token const & tk)
         break;
     }
 
+    if (tk.get_type() == tk_integer)
+        st << "; " << tk.get_int_data()->number << "; " << tk.get_int_data()->suffix;
+    else if (tk.get_type() == tk_float)
+        st << "; " << tk.get_float_data()->number << "; " << tk.get_float_data()->suffix;
+
     return st << "]";
 }
 
@@ -442,9 +447,183 @@ next_identifier_char:
 
 bool tokenizer::produce_number(char c)
 {
-    error_position = position_in_code(last_line, iter - contStart);
-    error = "INTEGERS NOT SUPPORTED YET";
-    return false;
+    token * const tk = append_token(tk_integer, 1);
+    unsigned int base = 10, digits = 1, digitsBeforeSeparator = 1337;
+
+    if (c == '0')
+    {
+        if (iter == contEnd)
+            goto wrap_up;
+        //  It's just 0.
+
+        switch (*iter)
+        {
+        case 'b': base = 2;  break;
+        case 'o': base = 8;  break;
+        case 'x': base = 16; break;
+
+        case ' ': case '\n': case '\t': case '\v': case '\f': case '\r':
+        case '(': case ')': case '[' : case ']': case '{': case '}' :
+        case '~': case '!': case '@' : case '#': case '$': case '%' :
+        case '^': case '&': case '*' : case '-': case '+': case '=' :
+        case ';': case ':': case '\'': case '"': case ',': case '<' :
+        case '.': case '>': case '/' : case '?': case '|': case '\\':
+            goto wrap_up;
+
+        default:
+            error_position = position_in_code(last_line, iter - contStart);
+            error = std::string("Expected 'b', 'o' or 'x' after '0' in integer, not ") + *iter;
+            return false;
+        }
+
+        ++iter;
+        digits = 0;
+    }
+
+    //  If it's not 0, then it's another base 10 digit.
+
+    for (/* nothing */; c = *iter, iter < contEnd; ++iter, ++digitsBeforeSeparator)
+    {
+        //  Love the comma operator!
+
+        if (c == '_')
+            continue;
+        //  These are skipped.
+
+        switch (base)
+        {
+        case  2: if (is_digit_bin(c)) goto score_digit; else break;
+        case  8: if (is_digit_oct(c)) goto score_digit; else break;
+        case 10: if (is_digit_dec(c)) goto score_digit; else break;
+        case 16: if (is_digit_hex(c)) goto score_digit; else break;
+        }
+
+        //  So, eh... This is not a digit. It may be either a decimal separator or a suffix.
+
+        if (c == '.')
+        {
+            if (tk->type == tk_integer)
+            {
+                tk->type = tk_float;
+                digitsBeforeSeparator = digits;
+
+                continue;
+                //  Next will be the decimals and prefixes.
+            }
+            else
+            {
+                //  Means this is not the first decimal separator.
+
+                error_position = position_in_code(last_line, iter - contStart);
+                error = "A number may not contain more than one decimal separator";
+                return false;
+            }
+        }
+
+        //  Not a decimal separator? Maybe it's the end of this integer.
+
+        switch (c)
+        {
+        case ' ': case '\n': case '\t': case '\v': case '\f': case '\r':
+        case '(': case ')': case '[' : case ']': case '{': case '}' :
+        case '~': case '!': case '@' : case '#': case '$': case '%' :
+        case '^': case '&': case '*' : case '-': case '+': case '=' :
+        case ';': case ':': case '\'': case '"': case ',': case '<' :
+        case '.': case '>': case '/' : case '?': case '|': case '\\':
+            goto wrap_up;
+
+        default:
+            //  So the digits ended, and this character must be part of the suffix.
+            goto find_suffix;
+        }
+
+    score_digit:
+        ++digits;
+        continue;
+    }
+
+    if (iter != contEnd)
+    {
+        //  Check for a proper size and sign suffix.
+
+    find_suffix:
+        decltype(iter) const suffixStart = iter;
+
+        do ++iter; while (iter != contEnd && can_be_in_identifier(*iter));
+
+        std::string const suffix = code->contents.substr(suffixStart - contStart, iter - suffixStart);
+
+        if (tk->type == tk_integer)
+            tk->int_data.suffix = suffix;
+        else
+            tk->float_data.suffix = suffix;
+    }
+
+wrap_up:
+    if (digitsBeforeSeparator == 1)
+    {
+        //  The number ending in a period means the period is a member access token, not a decimal separator.
+
+        tk->type = tk_integer;
+        --iter;
+    }
+
+    tk->value = code->contents.substr(tk->position.index, iter - contStart - tk->position.index);
+
+    if (tk->type == tk_integer)
+    {
+        uint128_t res = tk->int_data.number = 0;
+
+        switch (base)
+        {
+        case 2:
+            //  This skips the `0b`.
+            for (auto it = tk->value.begin() + 2; it < tk->value.end() && is_digit_bin(*it); ++it)
+                if (*it != '_')
+                    res = (res << 1) | (*it - '0');
+            break;
+
+        case 8:
+            //  This skips the `0o`.
+            for (auto it = tk->value.begin() + 2; it < tk->value.end() && is_digit_oct(*it); ++it)
+                if (*it != '_')
+                    res = (res << 3) | (*it - '0');
+            break;
+
+        case 10:
+            for (auto it = tk->value.begin(); it < tk->value.end() && is_digit_dec(*it); ++it)
+                if (*it != '_')
+                    res = res * 10 + (*it - '0');
+            break;
+
+        case 16:
+            //  This skips the `0x`.
+            for (auto it = tk->value.begin() + 2; it < tk->value.end() && is_digit_hex(*it); ++it)
+                if (*it <= '9')
+                    res = (res << 4) | (*it - '0');
+                else if (*it <= 'F')
+                    res = (res << 4) | (*it - '7');
+                else if (*it != '_')
+                    res = (res << 4) | (*it - 'W');
+            break;
+        }
+
+        tk->int_data.number = res;
+    }
+    else
+        switch (base)
+        {
+        case 10:
+            tk->float_data.number = atof(tk->value.c_str());
+            break;
+
+        case 2: case 8: case 16:
+            error_position = tk->position;
+            error = "Floating point literals may only be decimal";
+            return false;
+        }
+
+    return true;
 }
 
 bool tokenizer::produce_from_binary_operator(char c, bool const hasExclamationMark)

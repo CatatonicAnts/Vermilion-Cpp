@@ -21,7 +21,11 @@ a
 //= 
 
 1
-23
+23f
+45.6
+0xDEADBEEF
+0o123
+0b1101
 // comment lelz
 98/*comment*/76
 "rada"
@@ -31,3 +35,4 @@ int@@@
 "abc\
 def"
 'ghi\b'
+184467440737095516151337immalargenumba

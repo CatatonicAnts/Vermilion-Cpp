@@ -1,3 +1,6 @@
+#pragma once
+
+#include "int128_utils.hpp"
 #include <string>
 
 namespace verm
@@ -78,32 +81,16 @@ namespace verm
 
     char const * token_type_to_string(token_types tt);
 
-    enum integer_sizes
-    {
-        ints_8, ints_16, ints_32, ints_64, ints_128,
-    };
-
     struct tok_int_data
     {
-        integer_sizes size;
-        bool is_signed;
-        __uint128_t integer;
-    };
-
-    enum float_formats
-    {
-        floatf_single, floatf_double,
+        std::string suffix;
+        uint128_t number;
     };
 
     struct tok_float_data
     {
-        float_formats format;
-
-        __extension__ union
-        {
-            float valueF;
-            double valueD;
-        };
+        std::string suffix;
+        double number;
     };
 
     class code_unit
@@ -204,6 +191,16 @@ namespace verm
         inline token_types              get_type()     const { return this->type;     }
         inline std::string              get_value()    const { return this->value;    }
         inline position_in_code const & get_position() const { return this->position; }
+
+        inline tok_int_data const * get_int_data() const
+        {
+            return this->type == tk_integer ? &(this->int_data) : nullptr;
+        }
+
+        inline tok_float_data const * get_float_data() const
+        {
+            return this->type == tk_float ? &(this->float_data) : nullptr;
+        }
     };
 
     std::ostream & operator <<(std::ostream & st, token const & tk);
@@ -247,6 +244,9 @@ namespace verm
 
         inline tokenizer * get_source() const { return this->source; }
         inline token * get_token() const { return this->current; }
+
+        inline std::string get_error() const { return this->source->error; }
+        inline position_in_code get_error_position() const { return this->source->error_position; }
 
         token * fetch_token();
     };
