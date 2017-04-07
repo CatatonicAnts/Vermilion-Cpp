@@ -1,8 +1,8 @@
 #pragma once
 
 #include "tokenizer.hpp"
-#include "char_utils.hpp"
-#include "int128_utils.hpp"
+#include "utils/char.hpp"
+#include "utils/int128.hpp"
 
 #include <sstream>
 #include <fstream>
